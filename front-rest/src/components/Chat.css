@@ -1,0 +1,48 @@
+body {
+    font-family: Arial, sans-serif;
+   }
+   
+   .container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+   }
+   
+   .chatbox {
+    width: 100%;
+    height: 300px;
+    overflow: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+   }
+   
+   .message {
+    margin-bottom: 10px;
+    word-wrap: break-word;
+   }
+   
+   .message .sender {
+    font-weight: bold;
+    margin-right: 5px;
+   }
+   
+   .message .content {
+    display: inline-block;
+   }
+   
+   .inputbox {
+    width: 70%;
+    display: inline-block;
+    margin-right: 10px;
+   }
+   
+   .send-btn {
+    display: inline-block;
+    vertical-align: top;
+   }
+
+   .sent-message {
+    color: blue; /* ou qualquer outra cor que você preferir */
+   }

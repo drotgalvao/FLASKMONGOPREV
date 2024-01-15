@@ -1,0 +1,26 @@
+.home {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+   }
+   
+   .home h1 {
+    color: #333;
+   }
+   
+   .home nav ul {
+    list-style: none;
+    padding: 0;
+   }
+   
+   .home nav ul li {
+    margin: 10px 0;
+   }
+   
+   .home nav ul li a {
+    text-decoration: none;
+    color: #007BFF;
+   }

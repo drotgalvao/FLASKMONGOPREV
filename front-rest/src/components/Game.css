@@ -1,0 +1,27 @@
+.page {
+  display: flex;
+  height: 100vh;
+}
+
+.chat-container,
+.game-container {
+  width: 50%;
+}
+
+.game-container {
+  max-width: 50%;
+  max-height: 100%;
+}
+
+.game-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 60px;
+}
+
+.num_clicks {
+    position: absolute;
+    top: 20px;
+    right: 800px;
+}

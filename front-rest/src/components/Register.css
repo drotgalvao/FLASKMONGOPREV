@@ -1,0 +1,43 @@
+.register {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+   }
+   
+   .register form {
+    width: 300px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #fff;
+   }
+   
+   .register label {
+    display: block;
+    margin-bottom: 10px;
+   }
+   
+   .register input[type="text"],
+   .register input[type="email"],
+   .register input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+   }
+   
+   .register button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    background-color: #007bff;
+    cursor: pointer;
+   }
+   
+   .register button:hover {
+    background-color: #0056b3;
+   }
