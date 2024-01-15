@@ -11,6 +11,9 @@ function Game() {
   const [inRoom, setInRoom] = useState(false);
   const [blueSquarePosition, setBlueSquarePosition] = useState({ x: 0, y: 0 });
   const [clicks, setClicks] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [gameTimeRemaining, setGameTimeRemaining] = useState(null);
+  const [gameStarted, setGameStarted] = useState(false);
   const socketRef = useRef();
 
   const token = Cookies.get("token");
@@ -26,6 +29,30 @@ function Game() {
         },
       },
     });
+
+    socketRef.current.on("timer_started", (data) => {
+      setTimeRemaining(data.countdown);
+      const countdownInterval = setInterval(() => {
+        setTimeRemaining((prevTime) => prevTime - 1);
+      }, 1000);
+      setTimeout(() => {
+        clearInterval(countdownInterval);
+        setTimeRemaining(null);
+      }, data.countdown * 1000);
+     });
+
+     socketRef.current.on("game_started", (data) => {
+      setGameTimeRemaining(data.countdown);
+      setGameStarted(true);
+      const gameCountdownInterval = setInterval(() => {
+       setGameTimeRemaining((prevTime) => prevTime - 1);
+      }, 1000);
+      setTimeout(() => {
+       clearInterval(gameCountdownInterval);
+       setGameTimeRemaining(null);
+       setGameStarted(false);
+      }, data.countdown * 1000);
+     });
 
     socketRef.current.on("join_announcement", (data) => {
       const item = document.createElement("li");
@@ -66,7 +93,7 @@ function Game() {
 
   const joinRoom = () => {
     if (socketRef.current) {
-      socketRef.current.emit("join_game", { username, room });
+      socketRef.current.emit("join_game", { room });
       setInRoom(true);
     }
   };
@@ -80,7 +107,7 @@ function Game() {
 
   const sendMessage = () => {
     if (socketRef.current) {
-      socketRef.current.emit("send_message", { username, room, message });
+      socketRef.current.emit("send_message", { room, message });
     }
   };
 
@@ -104,15 +131,25 @@ function Game() {
       const randX = Math.floor(Math.random() * 5);
       const randY = Math.floor(Math.random() * 5);
       setBlueSquarePosition({ x: randX, y: randY });
+
+      // Emitir o evento add_point
+      if (socketRef.current) {
+        socketRef.current.emit("add_point");
+      }
     } else {
       setClicks(clicks - 1);
       const randX = Math.floor(Math.random() * 5);
       const randY = Math.floor(Math.random() * 5);
       setBlueSquarePosition({ x: randX, y: randY });
+
+      // Emitir o evento subtract_point
+      if (socketRef.current) {
+        socketRef.current.emit("subtract_point");
+      }
     }
-   };
-   
-   const generateSquares = () => {
+  };
+
+  const generateSquares = () => {
     let squares = [];
     for (let i = 0; i < 5; i++) {
       for (let j = 0; j < 5; j++) {
@@ -135,7 +172,7 @@ function Game() {
       }
     }
     return squares;
-   };
+  };
 
   return (
     <div className="page">
@@ -144,13 +181,6 @@ function Game() {
         <div id="rooms-container"></div>
         <button onClick={requestRoomList}>Refresh Rooms</button>
         <div id="room-form">
-          <input
-            id="username"
-            type="text"
-            placeholder="Enter your username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
           <input
             id="room"
             type="text"
@@ -173,14 +203,12 @@ function Game() {
         </div>
         <ul id="messages"></ul>
       </div>
+      {timeRemaining !== null && <p>Time remaining: {timeRemaining} seconds</p>}
+      {gameTimeRemaining !== null && <p>Game time remaining: {gameTimeRemaining} seconds</p>}
       <div className="game-container">
-      <p className="num_clicks">Number of clicks: {clicks}</p>
-        
-        {inRoom && (
-          <>
-            {generateSquares()}
-          </>
-        )}
+        <p className="num_clicks">Number of clicks: {clicks}</p>
+
+        {gameStarted && <>{generateSquares()}</>}
       </div>
     </div>
   );

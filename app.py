@@ -9,8 +9,11 @@ from functools import wraps
 import jwt
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 import redis
+import threading
+import time
 
 load_dotenv()
 SECRET_KEY = os.environ.get("SECRET_KEY")
@@ -31,7 +34,6 @@ def authenticated_only(f):
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             print("Token decodificado com sucesso", payload)
             user_id = payload.get("user_id")
-            print(payload)
             user_data[request.sid] = {
                 "user_id": user_id,
                 "nome": payload.get("nome"),
@@ -55,10 +57,10 @@ app.config["MONGO_URI"] = "mongodb://localhost:27017/click-game-db"
 mongo = PyMongo(app)
 app.mongo = mongo
 
-r = redis.Redis(host='localhost', port=6379, db=0)
-r.set('mykey', 'Hello')
+r = redis.Redis(host="localhost", port=6379, db=0)
+r.set("mykey", "Hello")
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=10)
 
 app.register_blueprint(user_bp, url_prefix="/api")
 
@@ -66,64 +68,114 @@ app.register_blueprint(user_bp, url_prefix="/api")
 ################################### socket
 rooms = {}
 users = {}
+last_activity = {}
+game_timers = {}
+
+
+
+def start_timer(room):
+    def timer_finished():
+        print(f"Timer finished for room {room}")
+        start_game(room)
+
+    print(f"Starting timer for room {room}")
+
+    socketio.emit("timer_started", {"room": room, "countdown": 10}, room=room)
+
+    game_timers[room] = threading.Timer(10.0, timer_finished)
+    game_timers[room].start()
+
+def start_game(room):
+    def game_finished():
+        print(f"Game finished in room {room}")
+
+
+    print(f"Starting game in room {room}")
+
+    socketio.emit("game_started", {"room": room, "countdown": 60}, room=room)
+
+    game_timers[room] = threading.Timer(60.0, game_finished)
+    game_timers[room].start()
+
+
+
 
 
 @socketio.on("join_game")
 def on_join_game(data):
-    print("Join game request received", data)
-    username = data["username"]
-    room = data["room"]
-    session_id = request.sid
+   print("Join game request received", data)
+   room = data["room"]
+   session_id = request.sid
 
-    if room not in rooms:
-        rooms[room] = []
+   if room not in rooms:
+       rooms[room] = []
 
-    if username in rooms[room]:
-        emit("join_error", {"msg": "You are already in the room."}, room=room)
-        return
+   user_info = user_data[session_id]
+   username = user_info["nome"]
+   user_id = user_info["user_id"]
 
-    if len(rooms[room]) < 4:
-        join_room(room)
-        rooms[room].append(username)
-        users[session_id] = {"username": username, "room": room}
-        emit(
-            "join_announcement", {"msg": f"{username} has joined the game."}, room=room
-        )
-    else:
-        emit("join_error", {"msg": "Sorry, the game room is full."})
+   if username in rooms[room]:
+       emit("join_error", {"msg": "You are already in the room."}, room=room)
+       return
+
+   if len(rooms[room]) < 4:
+       join_room(room)
+       rooms[room].append(username)
+       users[session_id] = {"username": username, "room": room, "user_id": user_id}
+       emit(
+           "join_announcement", {"msg": f"{username} has joined the game."}, room=room
+       )
+
+       if len(rooms[room]) >= 2:
+           start_timer(room)
+
+       r.hset(user_id, 'score', 0)
+
+   else:
+       emit("join_error", {"msg": "Sorry, the game room is full."})
 
 
 @socketio.on("list_rooms")
 def on_list_rooms():
-    print("List rooms request received")
+    # print("List rooms request received")
     rooms_list = {room: len(members) for room, members in rooms.items()}
     emit("rooms_list", rooms_list)
-    if len(rooms_list) != 0:
-        print("Users:", users)
+    # if len(rooms_list) != 0:
+    #     print("Users:", users)
 
 
 @socketio.on("send_message")
 def on_send_message(data):
-    username = data["username"]
     room = data["room"]
     message = data["message"]
+    session_id = request.sid
+    user_info = user_data[session_id]
+    username = user_info["nome"]
     emit("new_message", {"username": username, "msg": message}, room=room)
 
 
 @socketio.on("connect")
 @authenticated_only
 def handle_connect():
-    print("Client authenticated and connected with ID:", request.sid)
-    # Acessar os dados do usuário
-    user = user_data[request.sid]
-    print("User data:", user)
+   print("Client authenticated and connected with ID:", request.sid)
+   user = user_data[request.sid]
+   print("User data:", user)
+   last_activity[request.sid] = datetime.utcnow()
+
+   existing_session = next((session for session, data in users.items() if data['user_id'] == user['user_id']), None)
+
+   if existing_session:
+       users[existing_session] = {"username": user['nome'], "room": None, "user_id": user['user_id']}
+   else:
+       users[request.sid] = {"username": user['nome'], "room": None, "user_id": user['user_id']}
 
 
 @socketio.on("leave_game")
 def on_leave_game(data):
-    username = data["username"]
     room = data["room"]
     session_id = request.sid
+    user_info = user_data[session_id]
+    username = user_info["nome"]
     leave_room(room)
     if room in rooms and username in rooms[room]:
         rooms[room].remove(username)
@@ -139,7 +191,7 @@ def handle_disconnect():
     session_id = request.sid
     if session_id in users:
         user_info = users[session_id]
-        username = user_info["username"]
+        username = user_info["nome"]
         room = user_info["room"]
         leave_room(room)
         if room in rooms and username in rooms[room]:
@@ -155,24 +207,73 @@ def handle_disconnect():
     print("Client disconnected")
 
 
-def handle_click(user_id):
-   clicks = r.incr(user_id)
-   r.set(user_id, clicks)
+@socketio.on('add_point')
+def on_add_point():
+ session_id = request.sid
 
-@socketio.on('click')
-def handle_click_event(data):
-   user_id = data['user_id']
-   handle_click(user_id)
+ if session_id in users:
+     user_id = users[session_id]['user_id']
+     room = users[session_id]['room']
 
-def save_game_to_db(game_id, players):
-   players_dict = {player['user_id']: player['clicks'] for player in players}
-   app.mongo.db.games.insert_one({'_id': game_id, 'players': players_dict})
+     current_score = int(r.hget(f'{room}_score', user_id) or 0)
 
-@socketio.on('end_game')
-def handle_end_game_event(data):
-   game_id = data['game_id']
-   players = data['players']
-   save_game_to_db(game_id, players)
+     print(f"Current score for user {user_id} in room {room}: {current_score}")
+
+     new_score = current_score + 1
+
+     r.hset(f'{room}_score', user_id, new_score)
+
+     # Print the score after storing it in Redis
+     stored_score = int(r.hget(f'{room}_score', user_id) or 0)
+     print(f"Stored score for user {user_id} in room {room}: {stored_score}")
+
+     # Emit scores for all users in the room
+     for sid, user in users.items():
+         if user['room'] == room:
+             user_score = int(r.hget(f'{room}_score', user['user_id']) or 0)
+             emit('user_score', {'user_id': user['user_id'], 'score': user_score}, room=sid)
+
+     print(f"Score updated for user {user_id} in room {room}: {new_score}")
+ else:
+     print(f"No user found for session id: {session_id}")
+
+
+@socketio.on('subtract_point')
+def on_subtract_point():
+  session_id = request.sid
+
+  if session_id in users:
+      user_id = users[session_id]['user_id']
+      room = users[session_id]['room']
+
+      current_score = int(r.hget(f'{room}_score', user_id) or 0)
+
+      print(f"Current score for user {user_id} in room {room}: {current_score}")
+
+      if current_score <= 0:
+          print(f"Score cannot go below zero for user {user_id} in room {room}")
+          return
+
+      new_score = current_score - 1
+
+      r.hset(f'{room}_score', user_id, new_score)
+
+      # Print the score after storing it in Redis
+      stored_score = int(r.hget(f'{room}_score', user_id) or 0)
+      print(f"Stored score for user {user_id} in room {room}: {stored_score}")
+
+      # Emit scores for all users in the room
+      for sid, user in users.items():
+          if user['room'] == room:
+              user_score = int(r.hget(f'{room}_score', user['user_id']) or 0)
+              emit('user_score', {'user_id': user['user_id'], 'score': user_score}, room=sid)
+
+      print(f"Score updated for user {user_id} in room {room}: {new_score}")
+  else:
+      print(f"No user found for session id: {session_id}")
+
+
+
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
