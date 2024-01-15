@@ -14,6 +14,8 @@ function Game() {
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [gameTimeRemaining, setGameTimeRemaining] = useState(null);
   const [gameStarted, setGameStarted] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState('');
+  const [scores, setScores] = useState({});
   const socketRef = useRef();
 
   const token = Cookies.get("token");
@@ -30,6 +32,10 @@ function Game() {
       },
     });
 
+    socketRef.current.on("update_scores", (updatedScores) => {
+      setScores(updatedScores);
+    });
+
     socketRef.current.on("timer_started", (data) => {
       setTimeRemaining(data.countdown);
       const countdownInterval = setInterval(() => {
@@ -39,19 +45,27 @@ function Game() {
         clearInterval(countdownInterval);
         setTimeRemaining(null);
       }, data.countdown * 1000);
-     });
+    });
 
-     socketRef.current.on("game_started", (data) => {
+    socketRef.current.on("game_started", (data) => {
       setGameTimeRemaining(data.countdown);
       setGameStarted(true);
       const gameCountdownInterval = setInterval(() => {
-       setGameTimeRemaining((prevTime) => prevTime - 1);
+        setGameTimeRemaining((prevTime) => prevTime - 1);
       }, 1000);
       setTimeout(() => {
-       clearInterval(gameCountdownInterval);
-       setGameTimeRemaining(null);
-       setGameStarted(false);
+        clearInterval(gameCountdownInterval);
+        setGameTimeRemaining(null);
+        setGameStarted(false);
+        setScores({});
       }, data.countdown * 1000);
+    });
+
+    socketRef.current.on("game_start_cancelled", ({ msg }) => {
+      clearInterval(gameCountdownInterval);
+      setGameTimeRemaining(null);
+      setGameStarted(false);
+      setCancelMessage(msg);
      });
 
     socketRef.current.on("join_announcement", (data) => {
@@ -117,7 +131,7 @@ function Game() {
     }
   };
 
-  requestRoomList();
+  // requestRoomList();
 
   // useEffect(() => {
   //   const initialX = Math.floor(Math.random() * 5);
@@ -203,10 +217,23 @@ function Game() {
         </div>
         <ul id="messages"></ul>
       </div>
+      <div className="scoreboard">
+        {Object.values(scores)
+          .sort((a, b) => b.score - a.score)
+          .map(({ username, score }) => (
+            <div key={username}>
+              <span>
+                {username}: {score}
+              </span>
+            </div>
+          ))}
+      </div>
       {timeRemaining !== null && <p>Time remaining: {timeRemaining} seconds</p>}
-      {gameTimeRemaining !== null && <p>Game time remaining: {gameTimeRemaining} seconds</p>}
+      {gameTimeRemaining !== null && (
+        <p>Game time remaining: {gameTimeRemaining} seconds</p>
+      )}
       <div className="game-container">
-        <p className="num_clicks">Number of clicks: {clicks}</p>
+        {/* <p className="num_clicks">Number of clicks: {clicks}</p> */}
 
         {gameStarted && <>{generateSquares()}</>}
       </div>
