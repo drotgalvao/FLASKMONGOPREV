@@ -28,7 +28,7 @@ def authenticated_only(f):
         print(token)
         if not token:
             emit("authentication_error", {"error": "Authentication token is missing"})
-            return False  # Reject the connection
+            return False
 
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
@@ -41,10 +41,10 @@ def authenticated_only(f):
             }
         except jwt.ExpiredSignatureError:
             emit("authentication_error", {"error": "Token expired"})
-            return False  # Rejeitar a conexão
+            return False
         except jwt.InvalidTokenError:
             emit("authentication_error", {"error": "Invalid token"})
-            return False  # Rejeitar a conexão
+            return False
 
         return f(*args, **kwargs)
 
@@ -73,16 +73,19 @@ game_timers = {}
 
 
 def start_timer(room):
-    def timer_finished():
-        print(f"Timer finished for room {room}")
-        start_game(room)
+   def timer_finished():
+       if room not in rooms or len(rooms[room]) < 2:
+           return
 
-    print(f"Starting timer for room {room}")
+       print(f"Timer finished for room {room}")
+       start_game(room)
 
-    socketio.emit("timer_started", {"room": room, "countdown": 10}, room=room)
+   print(f"Starting timer for room {room}")
 
-    game_timers[room] = threading.Timer(10.0, timer_finished)
-    game_timers[room].start()
+   socketio.emit("timer_started", {"room": room, "countdown": 10}, room=room)
+
+   game_timers[room] = threading.Timer(10.0, timer_finished)
+   game_timers[room].start()
 
 
 def start_game(room):
@@ -92,7 +95,6 @@ def start_game(room):
        print(f"Game finished in room {room}")
        game_results = []
 
-       # Coletar os resultados dos jogadores na sala específica
        for session_id, user_info in list(users.items()):
            if user_info['room'] == room:
                game_results.append({
@@ -100,12 +102,9 @@ def start_game(room):
                   'user_id': user_info['user_id'],
                   'score': user_info['score']
                })
-               # Resetar o score do usuário
                user_info['score'] = 0
-               # Atualizar o score no dicionário de usuários
                users[session_id] = user_info
 
-       # Salvar os resultados no MongoDB
        if game_results:
            app.mongo.db.game_results.insert_one({
                'room': room,
@@ -113,7 +112,6 @@ def start_game(room):
                'finished_at': datetime.utcnow()
            })
 
-       # Deletar a sala após salvar os resultados
        del rooms[room]
 
    print(f"Starting game in room {room}")
@@ -158,7 +156,6 @@ def on_join_game(data):
         if len(rooms[room]) >= 2:
             start_timer(room)
 
-        r.hset(user_id, "score", 0)
 
     else:
         emit("join_error", {"msg": "Sorry, the game room is full."})
@@ -266,7 +263,6 @@ def on_add_point():
 
         new_score = current_score + 1
 
-        # Update the score in the users dictionary
         users[session_id]["score"] = new_score
 
         print(f"Score updated for user {user_id} in room {room}: {new_score}")
