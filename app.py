@@ -217,23 +217,13 @@ def on_add_point():
 
      current_score = int(r.hget(f'{room}_score', user_id) or 0)
 
-     print(f"Current score for user {user_id} in room {room}: {current_score}")
-
      new_score = current_score + 1
 
      r.hset(f'{room}_score', user_id, new_score)
 
-     # Print the score after storing it in Redis
-     stored_score = int(r.hget(f'{room}_score', user_id) or 0)
-     print(f"Stored score for user {user_id} in room {room}: {stored_score}")
-
-     # Emit scores for all users in the room
-     for sid, user in users.items():
-         if user['room'] == room:
-             user_score = int(r.hget(f'{room}_score', user['user_id']) or 0)
-             emit('user_score', {'user_id': user['user_id'], 'score': user_score}, room=sid)
 
      print(f"Score updated for user {user_id} in room {room}: {new_score}")
+     show_scores()
  else:
      print(f"No user found for session id: {session_id}")
 
@@ -248,31 +238,22 @@ def on_subtract_point():
 
       current_score = int(r.hget(f'{room}_score', user_id) or 0)
 
-      print(f"Current score for user {user_id} in room {room}: {current_score}")
-
-      if current_score <= 0:
-          print(f"Score cannot go below zero for user {user_id} in room {room}")
-          return
-
       new_score = current_score - 1
 
       r.hset(f'{room}_score', user_id, new_score)
 
-      # Print the score after storing it in Redis
-      stored_score = int(r.hget(f'{room}_score', user_id) or 0)
-      print(f"Stored score for user {user_id} in room {room}: {stored_score}")
-
-      # Emit scores for all users in the room
-      for sid, user in users.items():
-          if user['room'] == room:
-              user_score = int(r.hget(f'{room}_score', user['user_id']) or 0)
-              emit('user_score', {'user_id': user['user_id'], 'score': user_score}, room=sid)
-
       print(f"Score updated for user {user_id} in room {room}: {new_score}")
+      show_scores()
   else:
       print(f"No user found for session id: {session_id}")
 
 
+@socketio.on('show_scores')
+def show_scores():
+   for room in rooms.values():
+       for user_id in room:
+           score = int(r.hget(f'{room}_score', user_id) or 0)
+           emit('user_score', {'user_id': user_id, 'score': score}, room=room)
 
 
 if __name__ == "__main__":
