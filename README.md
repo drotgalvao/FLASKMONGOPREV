@@ -166,3 +166,19 @@ Para navegar no front-end deste aplicativo, você pode seguir os seguintes passo
 8. Nessa sala você podera enviar mensagens para outros jogadores presentes, alem disso assim que dois player estiverem na sala inicia-se uma contagem de 10 segundos para o inicio do jogo, limitado até quatro jogadores.
 
 9. No fim da partida sera enviado ao banco de dados as informaçoes da partida.
+
+
+## Testes de rotas Http
+
+
+1. `setUp`: Este método é chamado antes de cada teste. Ele inicializa um aplicativo Flask, um objeto mock para o banco de dados MongoDB e um dicionário com dados de usuário de teste. Também calcula o hash da senha do usuário de teste.
+
+2. `test_register_user`: Este método testa a funcionalidade de registro de usuário. Ele simula um caso em que o usuário não existe no banco de dados. Em seguida, chama a função `register_user` e verifica se a mensagem de sucesso e o código de status HTTP 201 são retornados.
+
+3. `test_register_existing_user`: Este método testa a funcionalidade de registro de usuário quando o usuário já existe no banco de dados. Ele simula um caso em que o usuário já existe e, em seguida, chama a função `register_user`. Verifica se a mensagem de erro e o código de status HTTP 400 são retornados.
+
+4. `test_login_user`: Este método testa a funcionalidade de login de usuário. Ele simula um contexto de solicitação com um corpo JSON contendo o email e a senha do usuário de teste. Em seguida, chama a função `login_user` e verifica se um token é incluído na resposta e se o código de status HTTP 200 é retornado.
+
+5. `test_get_user`: Este método testa a funcionalidade de obtenção de usuário. Ele simula um contexto de aplicativo e cria um ID de usuário de teste. Em seguida, define o valor de retorno da função `find_one` do MongoDB para um usuário de teste e chama a função `get_user`. Verifica se o ID do usuário na resposta corresponde ao ID do usuário de teste e se o código de status HTTP 200 é retornado.
+
+Para executar esses testes, você pode usar o comando `python -m unittest user/test_user_controller.py` no terminal, substituindo `python` pelo interpretador Python que você está usando.
