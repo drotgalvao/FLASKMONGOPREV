@@ -112,6 +112,9 @@ Agora, vamos passar para a documentação dos endpoints da API.
 }
 ```
 
+## Rodar a aplicação com Docker Compose
+
+Inicialmente renomeie o .env.example para .env dentro dele defina as variaveis de ambiente
 
 Para levantar a aplicação completa com Docker Compose, você precisa seguir os seguintes passos:
 
