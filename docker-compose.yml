@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+  flask_app:
+    build:
+      context: ./back
+    ports:
+      - "5000:5000"
+    entrypoint:
+      - flask
+      - run
+      - --host=0.0.0.0
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - ./back/.env
+
+  react_app:
+    build:
+      context: ./front-rest
+    ports:
+      - "5173:5173"
+    depends_on:
+      - flask_app
+
+  mongo:
+    image: mongo:4.4
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+volumes:
+  mongodb_data: 

@@ -62,11 +62,17 @@ def authenticated_only(f):
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
-app.config["MONGO_URI"] = "mongodb://localhost:27017/click-game-db"
+# docker
+app.config["MONGO_URI"] = "mongodb://mongo:27017/click-game-db"
+# local
+# app.config["MONGO_URI"] = "mongodb://localhost:27017/click-game-db"
 mongo = PyMongo(app)
 app.mongo = mongo
 
-r = redis.Redis(host="localhost", port=6379, db=0)
+# docker
+r = redis.Redis(host="redis", port=6379, db=0)
+# local
+# r = redis.Redis(host="localhost", port=6379, db=0)
 r.flushall()
 
 
@@ -144,42 +150,41 @@ def start_game(room):
 
 @socketio.on("join_game")
 def on_join_game(data):
-   print("Join game request received", data)
-   room = data["room"]
-   session_id = request.sid
+    print("Join game request received", data)
+    room = data["room"]
+    session_id = request.sid
 
-   if not r.exists(room):
-       r.set(room, json.dumps([]))
+    if room not in rooms:
+        rooms[room] = []
 
-   user_info = json.loads(r.get(session_id))
-   username = user_info["nome"]
-   user_id = user_info["user_id"]
+    # user_info = user_data[session_id]
+    user_info = json.loads(r.get(session_id))
+    username = user_info["nome"]
+    user_id = user_info["user_id"]
 
-   room_users = json.loads(r.get(room))
-   if username in room_users:
-       emit("join_error", {"msg": "You are already in the room."}, room=room)
-       return
+    if username in rooms[room]:
+        emit("join_error", {"msg": "You are already in the room."}, room=room)
+        return
 
-   if len(room_users) < 4:
-       join_room(room)
-       room_users.append(username)
-       r.set(room, json.dumps(room_users))
-       user_data = {
-           "username": username,
-           "room": room,
-           "user_id": user_id,
-           "score": 0,
-       }
-       r.set(session_id, json.dumps(user_data))
-       emit(
-           "join_announcement", {"msg": f"{username} has joined the game."}, room=room
-       )
+    if len(rooms[room]) < 4:
+        join_room(room)
+        rooms[room].append(username)
+        users[session_id] = {
+            "username": username,
+            "room": room,
+            "user_id": user_id,
+            "score": 0,
+        }
+        users[session_id]["score"] = 0
+        emit(
+            "join_announcement", {"msg": f"{username} has joined the game."}, room=room
+        )
 
-       if len(room_users) >= 2:
-           start_timer(room)
+        if len(rooms[room]) >= 2:
+            start_timer(room)
 
-   else:
-       emit("join_error", {"msg": "Sorry, the game room is full."})
+    else:
+        emit("join_error", {"msg": "Sorry, the game room is full."})
 
 
 @socketio.on("list_rooms")
@@ -260,24 +265,24 @@ def on_leave_game(data):
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    session_id = request.sid
-    if session_id in users:
-        user_info = users[session_id]
-        username = user_info["nome"]
-        room = user_info["room"]
-        leave_room(room)
-        if room in rooms and username in rooms[room]:
-            rooms[room].remove(username)
-            if not rooms[room]:
-                del rooms[room]
-            emit(
-                "leave_announcement",
-                {"msg": f"{username} has left the game."},
-                room=room,
-            )
+   session_id = request.sid
+   if session_id in users:
+       user_info = users[session_id]
+       username = user_info.get("nome", "")
+       room = user_info.get("room", "")
+       leave_room(room)
+       if room in rooms and username in rooms[room]:
+           rooms[room].remove(username)
+           if not rooms[room]:
+               del rooms[room]
+           emit(
+               "leave_announcement",
+               {"msg": f"{username} has left the game."},
+               room=room,
+           )
         # del users[session_id]
-        r.delete(session_id)
-    print("Client disconnected")
+       r.delete(session_id)
+   print("Client disconnected")
 
 
 @socketio.on("add_point")
@@ -327,4 +332,4 @@ def emit_scores(room):
 
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+   socketio.run(app, debug=True)
