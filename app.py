@@ -73,53 +73,58 @@ game_timers = {}
 
 
 def start_timer(room):
-   def timer_finished():
-       if room not in rooms or len(rooms[room]) < 2:
-           return
+  def timer_finished():
+      if room not in rooms or len(rooms[room]) < 2:
+          return
 
-       print(f"Timer finished for room {room}")
-       start_game(room)
+      print(f"Timer finished for room {room}")
+      start_game(room)
 
-   print(f"Starting timer for room {room}")
+  print(f"Starting timer for room {room}")
 
-   socketio.emit("timer_started", {"room": room, "countdown": 10}, room=room)
+  socketio.emit("timer_started", {"room": room, "countdown": 10}, room=room)
 
-   game_timers[room] = threading.Timer(10.0, timer_finished)
-   game_timers[room].start()
+  if room in game_timers:
+      game_timers[room].cancel()
+
+  game_timers[room] = threading.Timer(10.0, timer_finished)
+  game_timers[room].start()
 
 
 def start_game(room):
-   if room not in rooms or len(rooms[room]) < 2:
-       return
-   def game_finished():
-       print(f"Game finished in room {room}")
-       game_results = []
+  if room not in rooms or len(rooms[room]) < 2:
+      return
+  def game_finished():
+      print(f"Game finished in room {room}")
+      game_results = []
+      user_ids = set()
 
-       for session_id, user_info in list(users.items()):
-           if user_info['room'] == room:
-               game_results.append({
-                  'username': user_info['username'],
-                  'user_id': user_info['user_id'],
-                  'score': user_info['score']
-               })
-               user_info['score'] = 0
-               users[session_id] = user_info
+      for session_id, user_info in list(users.items()):
+          if user_info['room'] == room and user_info['user_id'] not in user_ids:
+              game_results.append({
+                'username': user_info['username'],
+                'user_id': user_info['user_id'],
+                'score': user_info['score']
+              })
+              user_ids.add(user_info['user_id'])
+              user_info['score'] = 0
+              users[session_id] = user_info
 
-       if game_results:
-           app.mongo.db.game_results.insert_one({
-               'room': room,
-               'results': game_results,
-               'finished_at': datetime.utcnow()
-           })
+      if game_results:
+          app.mongo.db.game_results.insert_one({
+              'room': room,
+              'results': game_results,
+              'finished_at': datetime.utcnow()
+          })
 
-       del rooms[room]
+      del rooms[room]
 
-   print(f"Starting game in room {room}")
+  print(f"Starting game in room {room}")
 
-   socketio.emit("game_started", {"room": room, "countdown": 60}, room=room)
+  socketio.emit("game_started", {"room": room, "countdown": 60}, room=room)
 
-   game_timers[room] = threading.Timer(60.0, lambda: game_finished())
-   game_timers[room].start()
+  game_timers[room] = threading.Timer(60.0, lambda: game_finished())
+  game_timers[room].start()
 
 
 @socketio.on("join_game")
@@ -292,7 +297,7 @@ def on_subtract_point():
 
 
 def emit_scores(room):
-    print(users)
+    # print(users)
     filtered_users = {sid: user for sid, user in users.items() if user["room"] == room}
     socketio.emit("update_scores", filtered_users, room=room)
 

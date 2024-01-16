@@ -36,38 +36,47 @@ function Game() {
       setScores(updatedScores);
     });
 
+    let countdownInterval;
+
     socketRef.current.on("timer_started", (data) => {
-      setTimeRemaining(data.countdown);
-      const countdownInterval = setInterval(() => {
-        setTimeRemaining((prevTime) => prevTime - 1);
-      }, 1000);
-      setTimeout(() => {
-        clearInterval(countdownInterval);
-        setTimeRemaining(null);
-      }, data.countdown * 1000);
+     // Clear the previous interval if it exists
+     if (countdownInterval) {
+       clearInterval(countdownInterval);
+     }
+    
+     setTimeRemaining(10); // Set the countdown back to 10 seconds
+     countdownInterval = setInterval(() => {
+       setTimeRemaining((prevTime) => prevTime - 1);
+     }, 1000);
+     setTimeout(() => {
+       clearInterval(countdownInterval);
+       setTimeRemaining(null);
+     }, 10000); // Set the timeout to 10 seconds
     });
+
+    let gameCountdownInterval;
 
     socketRef.current.on("game_started", (data) => {
-      setGameTimeRemaining(data.countdown);
-      setGameStarted(true);
-      const gameCountdownInterval = setInterval(() => {
-        setGameTimeRemaining((prevTime) => prevTime - 1);
-      }, 1000);
-      setTimeout(() => {
-        clearInterval(gameCountdownInterval);
-        setGameTimeRemaining(null);
-        setGameStarted(false);
-        setScores({});
-      }, data.countdown * 1000);
-    });
-
-    socketRef.current.on("game_start_cancelled", ({ msg }) => {
+     setGameTimeRemaining(data.countdown);
+     setGameStarted(true);
+     gameCountdownInterval = setInterval(() => {
+      setGameTimeRemaining((prevTime) => prevTime - 1);
+     }, 1000);
+     setTimeout(() => {
       clearInterval(gameCountdownInterval);
       setGameTimeRemaining(null);
       setGameStarted(false);
-      setCancelMessage(msg);
-     });
-
+      setScores({});
+     }, data.countdown * 1000);
+    });
+    
+    socketRef.current.on("game_start_cancelled", ({ msg }) => {
+     clearInterval(gameCountdownInterval);
+     setGameTimeRemaining(null);
+     setGameStarted(false);
+     setCancelMessage(msg);
+    });
+    
     socketRef.current.on("join_announcement", (data) => {
       const item = document.createElement("li");
       item.textContent = data.msg;
